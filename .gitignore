@@ -1,0 +1,3 @@
+rust/target/
+rust/resources/jassets/*
+!rust/resources/jassets/j4rs-*
