@@ -1,11 +1,14 @@
-use std::{fs, path::Path, sync::Arc};
+use std::{fs, sync::Arc};
 
 use glob::glob;
-use j4rs::{
-    ClasspathEntry, InvocationArg, JvmBuilder, MavenArtifact, MavenArtifactRepo, MavenSettings,
-};
+use j4rs::{ClasspathEntry, InvocationArg, JvmBuilder};
 use pumpkin::plugin::Context;
 use pumpkin_api_macros::{plugin_impl, plugin_method};
+use rust_embed::Embed;
+
+#[derive(Embed)]
+#[folder = "resources/"]
+struct Resources;
 
 async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(), String> {
     log::info!("Starting Pigot");
@@ -24,12 +27,7 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
     fs::create_dir_all(&jassets)
         .map_err(|err| format!("Failed to create jassets folder: {:?}", err))?;
 
-    let mut j4rs_jar_path = jassets.clone();
-    j4rs_jar_path.push("j4rs-0.23.1-jar-with-dependencies.jar");
-
-    let pigot_folder = pigot_folder.to_string_lossy();
     let pigot_plugin_folder = pigot_plugin_folder.to_string_lossy();
-    let j4rs_jar_path = Path::new(&j4rs_jar_path);
 
     let mut entries = Vec::new();
     for entry in
@@ -53,26 +51,43 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
         .map(|entry| ClasspathEntry::new(entry))
         .collect::<Vec<_>>();
 
-    if !j4rs_jar_path.exists() {
-        let jar = include_bytes!("../resources/jassets/j4rs-0.23.1-jar-with-dependencies.jar");
-        fs::write(j4rs_jar_path, jar)
-            .map_err(|err| format!("Failed to install j4rs jar: {:?}", err))?;
+    for resource_path_str in Resources::iter() {
+        let mut resource_path = pigot_folder.clone();
+        resource_path.push(resource_path_str.to_string());
+        if !resource_path.exists() {
+            let resource = Resources::get(&resource_path_str).unwrap();
+            fs::write(resource_path, resource.data)
+                .map_err(|err| format!("Failed to add jar to jassets: {:?}", err))?;
+        }
     }
-    log::info!("jassets: {:?}", jassets);
 
     let jvm = JvmBuilder::new()
         .classpath_entries(entries)
         .skip_setting_native_lib()
-        .with_base_path(&pigot_folder)
+        .with_base_path(&pigot_folder.to_string_lossy())
         .build()
         .map_err(|err| format!("jvm failed to init: {:?}", err))?;
 
-    let plugin_instance = jvm
-        .create_instance(
-            "net.zhendema.withersurvival.WitherSurvival", // The Java class to create an instance for
-            InvocationArg::empty(), // An array of `InvocationArg`s to use for the constructor call - empty for this example
+    let pigot_server = jvm
+        .create_instance("org.pigot.PigotServer", InvocationArg::empty())
+        .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+
+    let set_bukkit_server = jvm
+        .invoke_static(
+            "org.bukkit.Bukkit",
+            "setServer",
+            &[InvocationArg::from(pigot_server)],
         )
         .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+    // let plugin_loader = jvm
+    //     .create_instance("org.bukkit.plugin.java.JavaPluginLoader", InvocationArg::empty())
+    //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+    // let plugin_instance = jvm
+    //     .create_instance(
+    //         "net.zhendema.withersurvival.WitherSurvival", // The Java class to create an instance for
+    //         InvocationArg::empty(), // An array of `InvocationArg`s to use for the constructor call - empty for this example
+    //     )
+    //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
 
     log::info!("JVM initialized");
 

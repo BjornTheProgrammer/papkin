@@ -1,6 +1,6 @@
 use std::{collections::HashSet, error::Error, fs, path::Path};
 
-use j4rs::{JvmBuilder, MavenArtifact, MavenArtifactRepo, MavenSettings};
+use j4rs::{JvmBuilder, LocalJarArtifact, MavenArtifact, MavenArtifactRepo, MavenSettings};
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
@@ -17,8 +17,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         ("net.kyori", "adventure-text-serializer-legacy", "4.25.0"),
         ("net.kyori", "adventure-text-serializer-plain", "4.25.0"),
         ("net.kyori", "adventure-text-serializer-json", "4.25.0"),
-        ("net.kyori", "adventure-api", "4.19.0"),
-        ("net.kyori", "adventure-key", "4.19.0"),
+        ("net.kyori", "adventure-api", "4.25.0"),
+        ("net.kyori", "adventure-key", "4.25.0"),
         ("net.kyori", "adventure-text-serializer-commons", "4.25.0"),
         ("net.kyori", "adventure-text-serializer-gson", "4.25.0"),
         ("com.google.code.gson", "gson", "2.11.0"),
@@ -117,8 +117,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             jvm.deploy_artifact(&MavenArtifact::from(format!(
                 "{}:{}:{}",
                 dep.0, dep.1, dep.2
-            )))?
+            )))?;
         }
     }
+
+    jvm.deploy_artifact(&LocalJarArtifact::new("../java/pigot/build/libs/pigot.jar"))?;
+
     Ok(())
 }
