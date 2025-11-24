@@ -19,10 +19,11 @@ j4rs = { version = "0.23.1" }
 rust-embed = "8.9.0"
 
 [build-dependencies]
-j4rs = { version = "0.23.1" }
+j4rs = { version = "0.23.1", artifact = "cdylib", lib = true }
 env_logger = "0.11.8"
 log = "0.4"
 mvn = "0.2.0"
+cargo_metadata = "0.23.1"
 
 [profile.release]
 lto = true

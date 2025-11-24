@@ -1,5 +1,6 @@
 rust/target/
 rust/resources/jassets/*
+rust/resources/deps/*
 !rust/resources/jassets/j4rs-*
 
 # Ignore Gradle project-specific cache directory

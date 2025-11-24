@@ -56,14 +56,17 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
         resource_path.push(resource_path_str.to_string());
         if !resource_path.exists() {
             let resource = Resources::get(&resource_path_str).unwrap();
+            let mut resource_parent = resource_path.clone();
+            resource_parent.pop();
+            fs::create_dir_all(resource_parent)
+                .map_err(|err| format!("Failed to create parent for resource: {:?}", err))?;
             fs::write(resource_path, resource.data)
-                .map_err(|err| format!("Failed to add jar to jassets: {:?}", err))?;
+                .map_err(|err| format!("Failed to add resource: {:?}", err))?;
         }
     }
 
     let jvm = JvmBuilder::new()
         .classpath_entries(entries)
-        .skip_setting_native_lib()
         .with_base_path(&pigot_folder.to_string_lossy())
         .build()
         .map_err(|err| format!("jvm failed to init: {:?}", err))?;
@@ -79,6 +82,7 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
             &[InvocationArg::from(pigot_server)],
         )
         .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+
     // let plugin_loader = jvm
     //     .create_instance("org.bukkit.plugin.java.JavaPluginLoader", InvocationArg::empty())
     //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
