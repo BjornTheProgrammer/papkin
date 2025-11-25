@@ -9,3 +9,4 @@ java/.gradle
 # Ignore Gradle build output directory
 java/pigot/build
 java/pigot/bin
+java/build

@@ -89,6 +89,8 @@ import org.jetbrains.annotations.Nullable;
 
 public class PigotServer implements Server {
 
+    private final Logger logger = Logger.getLogger("Minecraft");
+
     @Override
     public void sendPluginMessage(
         @NotNull Plugin source,
@@ -634,10 +636,7 @@ public class PigotServer implements Server {
 
     @Override
     public @NotNull Logger getLogger() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException(
-            "Unimplemented method 'getLogger'"
-        );
+        return this.logger;
     }
 
     @Override

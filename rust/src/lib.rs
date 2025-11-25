@@ -1,10 +1,12 @@
-use std::{fs, sync::Arc};
+use std::{collections::HashSet, fs, sync::Arc};
 
 use glob::glob;
 use j4rs::{ClasspathEntry, InvocationArg, JvmBuilder};
 use pumpkin::plugin::Context;
 use pumpkin_api_macros::{plugin_impl, plugin_method};
 use rust_embed::Embed;
+
+pub mod java;
 
 #[derive(Embed)]
 #[folder = "resources/"]
@@ -22,7 +24,9 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
     fs::create_dir_all(&pigot_plugin_folder)
         .map_err(|err| format!("Failed to create plugin folder: {:?}", err))?;
 
-    let mut jassets = pigot_folder.clone();
+    let mut j4rs_folder = pigot_folder.clone();
+    j4rs_folder.push("j4rs");
+    let mut jassets = j4rs_folder.clone();
     jassets.push("jassets");
     fs::create_dir_all(&jassets)
         .map_err(|err| format!("Failed to create jassets folder: {:?}", err))?;
@@ -51,8 +55,28 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
         .map(|entry| ClasspathEntry::new(entry))
         .collect::<Vec<_>>();
 
+    let allowed: HashSet<String> = Resources::iter().map(|p| p.to_string()).collect();
+
+    for entry in walkdir::WalkDir::new(&j4rs_folder)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+    {
+        let rel_path = entry
+            .path()
+            .strip_prefix(&j4rs_folder)
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+
+        if !allowed.contains(&rel_path) {
+            log::warn!("Removing stale j4rs file: {rel_path}");
+            let _ = fs::remove_file(entry.path()); // ignore error (locked file, perms, etc)
+        }
+    }
+
     for resource_path_str in Resources::iter() {
-        let mut resource_path = pigot_folder.clone();
+        let mut resource_path = j4rs_folder.clone();
         resource_path.push(resource_path_str.to_string());
         if !resource_path.exists() {
             let resource = Resources::get(&resource_path_str).unwrap();
@@ -60,6 +84,18 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
             resource_parent.pop();
             fs::create_dir_all(resource_parent)
                 .map_err(|err| format!("Failed to create parent for resource: {:?}", err))?;
+
+            fs::write(resource_path, resource.data)
+                .map_err(|err| format!("Failed to add resource: {:?}", err))?;
+        } else {
+            let resource = Resources::get(&resource_path_str).unwrap();
+            let old_resource = fs::read(&resource_path)
+                .map_err(|err| format!("Failed to read resource: {:?}", err))?;
+
+            if resource.data == old_resource {
+                continue;
+            }
+
             fs::write(resource_path, resource.data)
                 .map_err(|err| format!("Failed to add resource: {:?}", err))?;
         }
@@ -67,7 +103,7 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
 
     let jvm = JvmBuilder::new()
         .classpath_entries(entries)
-        .with_base_path(&pigot_folder.to_string_lossy())
+        .with_base_path(&j4rs_folder.to_string_lossy())
         .build()
         .map_err(|err| format!("jvm failed to init: {:?}", err))?;
 

@@ -5,10 +5,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use cargo_metadata::MetadataCommand;
 use j4rs::{JvmBuilder, LocalJarArtifact, MavenArtifact, MavenArtifactRepo, MavenSettings};
 
 fn main() -> Result<(), Box<dyn Error>> {
+    println!("cargo::rerun-if-changed=rust/src/build.rs");
+    println!("cargo::rerun-if-changed=java/build/libs/");
     env_logger::init();
 
     let dependencies = [
@@ -97,15 +98,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .to_string_lossy(),
         )
         .build()
-        .map_err(|err| format!("jvm failed to init: {:?}", err))?;
+        .map_err(|err| format!("jvm failed to init: {:?}", err))
+        .unwrap();
 
     let expected: HashSet<String> = dependencies
         .iter()
         .map(|d| format!("{}-{}.jar", d.1, d.2))
         .collect();
 
-    for entry in fs::read_dir("./resources/jassets")? {
-        let entry = entry?;
+    for entry in fs::read_dir("./resources/jassets").unwrap() {
+        let entry = entry.unwrap();
         let file_name = entry.file_name().to_string_lossy().into_owned();
 
         if file_name.starts_with("j4rs-") {
@@ -114,8 +116,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         if !expected.contains(&file_name) {
             let remove_path = entry.path();
-            fs::remove_file(remove_path)?;
+            fs::remove_file(remove_path).unwrap();
         }
+    }
+
+    if Path::new("./resources/deps").exists() {
+        fs::remove_dir_all("./resources/deps").unwrap();
     }
 
     for dep in dependencies {
@@ -123,7 +129,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             jvm.deploy_artifact(&MavenArtifact::from(format!(
                 "{}:{}:{}",
                 dep.0, dep.1, dep.2
-            )))?;
+            )))
+            .unwrap();
         }
     }
 
@@ -133,13 +140,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
     }
 
-    jvm.deploy_artifact(&LocalJarArtifact::new("../java/pigot/build/libs/pigot.jar"))?;
+    jvm.deploy_artifact(&LocalJarArtifact::new("../java/pigot/build/libs/pigot.jar"))
+        .unwrap();
 
     let cdylib = std::env::var("CARGO_CDYLIB_FILE_J4RS").unwrap();
     let mut cdylib = PathBuf::from(cdylib);
 
     let mut cdylib_to = PathBuf::from("./resources/deps");
-    fs::create_dir_all(&cdylib_to)?;
+    fs::create_dir_all(&cdylib_to).unwrap();
 
     let original_name = cdylib.file_name().unwrap().to_string_lossy();
     let stem = original_name.split('-').next().unwrap(); // before the first '-'
@@ -148,7 +156,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     cdylib_to.push(format!("{}.{}", stem, ext));
 
     fs::copy(&cdylib, &cdylib_to)
-        .map_err(|err| format!("Failed to copy j4rs native lib: {:?}", err))?;
+        .map_err(|err| format!("Failed to copy j4rs native lib: {:?}", err))
+        .unwrap();
 
     Ok(())
 }
