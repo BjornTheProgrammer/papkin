@@ -89,6 +89,10 @@ import org.jetbrains.annotations.Nullable;
 
 public class PigotServer implements Server {
 
+    private final String serverName =
+        io.papermc.paper.ServerBuildInfo.buildInfo().brandName();
+    private final String bukkitVersion = Versioning.getBukkitVersion();
+
     private final Logger logger = Logger.getLogger("Minecraft");
 
     @Override
@@ -129,10 +133,7 @@ public class PigotServer implements Server {
 
     @Override
     public @NotNull String getName() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException(
-            "Unimplemented method 'getName'"
-        );
+        return this.serverName;
     }
 
     @Override
@@ -145,10 +146,7 @@ public class PigotServer implements Server {
 
     @Override
     public @NotNull String getBukkitVersion() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException(
-            "Unimplemented method 'getBukkitVersion'"
-        );
+        return this.bukkitVersion;
     }
 
     @Override
