@@ -13,29 +13,32 @@ pub mod java;
 struct Resources;
 
 async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(), String> {
-    log::info!("Starting Pigot");
+    log::info!("Starting Papkin");
 
-    let pigot_folder = server
+    let papkin_folder = server
         .get_data_folder()
         .canonicalize()
         .map_err(|_err| "Failed to get absolute directory from relative")?;
-    let mut pigot_plugin_folder = pigot_folder.clone();
-    pigot_plugin_folder.push("plugins");
-    fs::create_dir_all(&pigot_plugin_folder)
+    let mut papkin_plugin_folder = papkin_folder.clone();
+    papkin_plugin_folder.push("papkin-plugins");
+
+    let mut papkin_plugin_update_folder = papkin_plugin_folder.clone();
+    papkin_plugin_update_folder.push("update");
+    fs::create_dir_all(&papkin_plugin_update_folder)
         .map_err(|err| format!("Failed to create plugin folder: {:?}", err))?;
 
-    let mut j4rs_folder = pigot_folder.clone();
+    let mut j4rs_folder = papkin_folder.clone();
     j4rs_folder.push("j4rs");
     let mut jassets = j4rs_folder.clone();
     jassets.push("jassets");
     fs::create_dir_all(&jassets)
         .map_err(|err| format!("Failed to create jassets folder: {:?}", err))?;
 
-    let pigot_plugin_folder = pigot_plugin_folder.to_string_lossy();
+    let papkin_plugin_folder = papkin_plugin_folder.to_string_lossy();
 
     let mut entries = Vec::new();
     for entry in
-        glob(&format!("{}/**/*.jar", pigot_plugin_folder)).expect("Failed to read glob pattern")
+        glob(&format!("{}/**/*.jar", papkin_plugin_folder)).expect("Failed to read glob pattern")
     {
         log::info!("jar found: {:?}", entry);
         match entry {
@@ -101,35 +104,57 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
         }
     }
 
+    let mut paper_jar = j4rs_folder.clone();
+    paper_jar.push("paper/paper-server-1.21.10-R0.1-SNAPSHOT.jar");
+    let paper_jar = paper_jar.to_string_lossy();
+    let paper_jar_entry = ClasspathEntry::new(&paper_jar);
+
     let jvm = JvmBuilder::new()
         .classpath_entries(entries)
+        .classpath_entry(paper_jar_entry)
         .with_base_path(&j4rs_folder.to_string_lossy())
         .build()
         .map_err(|err| format!("jvm failed to init: {:?}", err))?;
 
-    let pigot_server = jvm
-        .create_instance("org.pigot.PigotServer", InvocationArg::empty())
+    let papkin_server = jvm
+        .create_instance("org.papkin.PapkinServer", InvocationArg::empty())
         .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
 
-    let set_bukkit_server = jvm
-        .invoke_static(
-            "org.bukkit.Bukkit",
-            "setServer",
-            &[InvocationArg::from(pigot_server)],
-        )
-        .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+    jvm.invoke_static(
+        "org.bukkit.Bukkit",
+        "setServer",
+        &[InvocationArg::from(papkin_server)],
+    )
+    .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+
+    // jvm.invoke_static(
+    //     "io.papermc.paper.plugin.PluginInitializerManager",
+    //     "load",
+    //     &[InvocationArg::from(papkin_server)],
+    // )
+    // .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+
+    // let plugin_init_manager = jvm
+    //     .create_instance(
+    //         "io.papermc.paper.plugin.PluginInitializerManager",
+    //         InvocationArg::empty(),
+    //     )
+    //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+
+    // let java_plugin = jvm
+    //     .create_instance("org.bukkit.plugin.java.JavaPlugin", InvocationArg::empty())
+    //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
 
     // let plugin_loader = jvm
     //     .create_instance("org.bukkit.plugin.java.JavaPluginLoader", InvocationArg::empty())
     //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+
     // let plugin_instance = jvm
     //     .create_instance(
     //         "net.zhendema.withersurvival.WitherSurvival", // The Java class to create an instance for
     //         InvocationArg::empty(), // An array of `InvocationArg`s to use for the constructor call - empty for this example
     //     )
     //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
-
-    log::info!("JVM initialized");
 
     Ok(())
 }

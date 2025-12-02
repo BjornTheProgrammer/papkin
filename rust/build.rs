@@ -3,6 +3,7 @@ use std::{
     error::Error,
     fs,
     path::{Path, PathBuf},
+    process::{Command, ExitStatus},
 };
 
 use j4rs::{JvmBuilder, LocalJarArtifact, MavenArtifact, MavenArtifactRepo, MavenSettings};
@@ -134,14 +135,66 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    if !Path::new("../java/pigot/build/libs/pigot.jar").exists() {
+    if !Path::new("../java/papkin/build/libs/papkin.jar").exists() {
         panic!(
-            "Failed to find pigot.jar, build the java library first by running `gradle build` in the java directory!"
+            "Failed to find papkin.jar, build the java library first by running `gradle build` in the java directory!"
         );
     }
 
-    jvm.deploy_artifact(&LocalJarArtifact::new("../java/pigot/build/libs/pigot.jar"))
+    jvm.deploy_artifact(&LocalJarArtifact::new(
+        "../java/papkin/build/libs/papkin.jar",
+    ))
+    .unwrap();
+
+    // jvm.deploy_artifact(&LocalJarArtifact::new(
+    //     "../java/libs/paper-server-1.21.10-R0.1-SNAPSHOT.jar",
+    // ))
+    // .unwrap();
+    //
+
+    fs::create_dir_all(Path::new("./resources/paper")).unwrap();
+
+    fs::copy(
+        "../java/libs/paper-server-1.21.10-R0.1-SNAPSHOT.jar",
+        Path::new("./resources/paper/paper-server-1.21.10-R0.1-SNAPSHOT.jar"),
+    )
+    .unwrap();
+
+    // let output = Command::new("jar")
+    //     .args([
+    //         "uf",
+    //         "paper-server-1.21.10-R0.1-SNAPSHOT.jar",
+    //         "--delete",
+    //         "META-INF/services/*",
+    //     ])
+    //     .current_dir(Path::new("./resources/paper"))
+    //     .output()
+    //     .unwrap();
+
+    // if !output.status.success() {
+    //     eprintln!(
+    //         "Failed for reason: {}",
+    //         String::from_utf8(output.stderr).unwrap()
+    //     );
+    //     panic!("Failed to remove services files from paper-server jar");
+    // }
+    let output = Command::new("zip")
+        .args([
+            "-d",
+            "paper-server-1.21.10-R0.1-SNAPSHOT.jar",
+            "META-INF/services/io.papermc.paper.ServerBuildInfo",
+        ])
+        .current_dir(Path::new("./resources/paper"))
+        .output()
         .unwrap();
+
+    if !output.status.success() {
+        eprintln!(
+            "Failed for reason: {}",
+            String::from_utf8(output.stderr).unwrap()
+        );
+        panic!("Failed to remove services files from paper-server jar");
+    }
 
     let cdylib = std::env::var("CARGO_CDYLIB_FILE_J4RS").unwrap();
     let mut cdylib = PathBuf::from(cdylib);

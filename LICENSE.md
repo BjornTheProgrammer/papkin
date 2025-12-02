@@ -1,7 +1,7 @@
-Pigot Licensing Notice
+Papkin Licensing Notice
 ======================
 
-Pigot contains two distinct components with separate licensing:
+Papkin contains two distinct components with separate licensing:
 
 1. Java Code (Directory: `/java`)
 ---------------------------------
@@ -30,7 +30,7 @@ By submitting a contribution to this repository, you agree that:
 - Code placed in `/java` must comply with GPLv3.
 - Code outside `/java` will be licensed under MIT and Apache 2.0.
 - You retain full copyright ownership over your contributions.
-- You grant Pigot the right to distribute your work according to the
+- You grant Papkin the right to distribute your work according to the
   applicable directory license.
 
 License Files
