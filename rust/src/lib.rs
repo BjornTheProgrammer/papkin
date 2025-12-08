@@ -127,34 +127,20 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
     )
     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
 
-    // jvm.invoke_static(
-    //     "io.papermc.paper.plugin.PluginInitializerManager",
-    //     "load",
-    //     &[InvocationArg::from(papkin_server)],
-    // )
-    // .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+    let options = jvm
+        .invoke_static(
+            "org.papkin.Options",
+            "defaultOptions",
+            InvocationArg::empty(),
+        )
+        .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
 
-    // let plugin_init_manager = jvm
-    //     .create_instance(
-    //         "io.papermc.paper.plugin.PluginInitializerManager",
-    //         InvocationArg::empty(),
-    //     )
-    //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
-
-    // let java_plugin = jvm
-    //     .create_instance("org.bukkit.plugin.java.JavaPlugin", InvocationArg::empty())
-    //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
-
-    // let plugin_loader = jvm
-    //     .create_instance("org.bukkit.plugin.java.JavaPluginLoader", InvocationArg::empty())
-    //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
-
-    // let plugin_instance = jvm
-    //     .create_instance(
-    //         "net.zhendema.withersurvival.WitherSurvival", // The Java class to create an instance for
-    //         InvocationArg::empty(), // An array of `InvocationArg`s to use for the constructor call - empty for this example
-    //     )
-    //     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+    jvm.invoke_static(
+        "io.papermc.paper.plugin.PluginInitializerManager",
+        "load",
+        &[InvocationArg::from(options)],
+    )
+    .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
 
     Ok(())
 }
