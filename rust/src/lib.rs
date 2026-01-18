@@ -136,8 +136,8 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
         .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
 
     jvm.invoke_static(
-        "io.papermc.paper.plugin.PluginInitializerManager",
-        "load",
+        "org.papkin.LoadPlugins",
+        "loadAllPlugins",
         &[InvocationArg::from(options)],
     )
     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
