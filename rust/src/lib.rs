@@ -13,6 +13,7 @@ pub mod java;
 struct Resources;
 
 async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(), String> {
+    server.init_log();
     log::info!("Starting Papkin");
 
     let papkin_folder = server
@@ -78,6 +79,8 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
         }
     }
 
+    log::info!("Finished walking directory");
+
     for resource_path_str in Resources::iter() {
         let mut resource_path = j4rs_folder.clone();
         resource_path.push(resource_path_str.to_string());
@@ -104,21 +107,21 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
         }
     }
 
-    let mut paper_jar = j4rs_folder.clone();
-    paper_jar.push("paper/paper-server-1.21.10-R0.1-SNAPSHOT.jar");
-    let paper_jar = paper_jar.to_string_lossy();
-    let paper_jar_entry = ClasspathEntry::new(&paper_jar);
+    log::info!("Starting the JVM");
 
     let jvm = JvmBuilder::new()
         .classpath_entries(entries)
-        .classpath_entry(paper_jar_entry)
-        .with_base_path(&j4rs_folder.to_string_lossy())
+        .with_base_path(&j4rs_folder)
         .build()
         .map_err(|err| format!("jvm failed to init: {:?}", err))?;
+
+    log::info!("Started the JVM");
 
     let papkin_server = jvm
         .create_instance("org.papkin.PapkinServer", InvocationArg::empty())
         .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+
+    log::info!("After creating instance of server");
 
     jvm.invoke_static(
         "org.bukkit.Bukkit",
@@ -127,27 +130,13 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
     )
     .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
 
-    let options = jvm
-        .invoke_static(
-            "org.papkin.Options",
-            "defaultOptions",
-            InvocationArg::empty(),
-        )
-        .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
-
-    jvm.invoke_static(
-        "org.papkin.LoadPlugins",
-        "loadAllPlugins",
-        &[InvocationArg::from(options)],
-    )
-    .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
+    log::info!("After setting server");
 
     Ok(())
 }
 
 #[plugin_method]
 async fn on_load(&mut self, server: Arc<Context>) -> Result<(), String> {
-    pumpkin::init_log!();
     on_load_inner(self, server).await
 }
 

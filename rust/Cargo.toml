@@ -12,16 +12,16 @@ pumpkin-util = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "ma
 pumpkin-api-macros = { git = "https://github.com/Pumpkin-MC/Pumpkin.git", branch = "master", package = "pumpkin-api-macros" }
 
 async-trait = "0.1"
-tokio = "1.42"
+tokio = "1"
 log = "0.4"
 glob = "0.3.2"
-j4rs = { version = "0.23.1" }
+j4rs = { version = "0.24" }
 j4rs_derive = "0.1"
 rust-embed = "8.9.0"
 walkdir = "2"
 
 [build-dependencies]
-j4rs = { version = "0.23.1", artifact = "cdylib", lib = true }
+j4rs = { version = "0.24", artifact = "cdylib", lib = true }
 env_logger = "0.11.8"
 log = "0.4"
 

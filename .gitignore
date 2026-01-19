@@ -1,4 +1,5 @@
-rust/target/
+/target
+/rust/target
 rust/resources/jassets/*
 rust/resources/deps/*
 !rust/resources/jassets/j4rs-*
