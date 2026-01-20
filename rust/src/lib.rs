@@ -1,18 +1,22 @@
 use std::sync::Arc;
 
+use j4rs::ClasspathEntry;
 use pumpkin::plugin::Context;
 use pumpkin_api_macros::{plugin_impl, plugin_method};
 
 pub mod config;
 pub mod directories;
 pub mod java;
+pub mod plugin;
 
 use directories::setup_directories;
 use java::{
-    jar::{create_classpath_entries, discover_jar_files},
+    jar::discover_jar_files,
     jvm::{initialize_jvm, setup_papkin_server},
     resources::{cleanup_stale_files, sync_embedded_resources},
 };
+
+use crate::{java::jar::read_configs_from_jar, plugin::manager::PluginManager};
 
 async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(), String> {
     server.init_log();
@@ -21,9 +25,43 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
     // Setup directories
     let dirs = setup_directories(&server)?;
 
+    let mut plugin_manager = PluginManager::new();
+
     // Discover and prepare JAR files
     let jar_paths = discover_jar_files(&dirs.plugins);
-    let classpath_entries = create_classpath_entries(&jar_paths);
+    log::error!("Discovered JAR files: {:?}", jar_paths);
+    for jar_path in &jar_paths {
+        match read_configs_from_jar(jar_path) {
+            Ok(configs) => match configs {
+                (Some(paper_plugin_config), spigot @ _) => {
+                    match plugin_manager.load_paper_plugin(jar_path, &paper_plugin_config, &spigot)
+                    {
+                        Ok(_) => log::info!("Loaded Paper plugin from JAR: {}", jar_path.display()),
+                        Err(err) => log::error!("Failed to load Paper plugin from JAR: {}", err),
+                    }
+                }
+                (None, Some(spigot)) => {
+                    match plugin_manager.load_spigot_plugin(jar_path, &spigot) {
+                        Ok(_) => {
+                            log::info!("Loaded Spigot plugin from JAR: {}", jar_path.display())
+                        }
+                        Err(err) => log::error!("Failed to load Spigot plugin from JAR: {}", err),
+                    }
+                }
+                (None, None) => log::warn!(
+                    "Could not find any plugin configuration in JAR: {}",
+                    jar_path.display()
+                ),
+            },
+            Err(err) => {
+                log::error!("Failed to read configs from papkin plugin jar: {}", err);
+            }
+        }
+    }
+    let classpath_entries = jar_paths
+        .iter()
+        .map(|entry| ClasspathEntry::new(entry))
+        .collect();
 
     // Manage embedded resources
     cleanup_stale_files(&dirs.j4rs);
