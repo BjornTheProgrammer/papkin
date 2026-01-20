@@ -1,29 +1,59 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use j4rs::{Instance, InvocationArg, Jvm};
 
 use crate::config::{paper::PaperPluginYml, spigot::SpigotPluginYml};
 
-#[derive(Debug)]
-pub enum Plugin {
-    Paper(PaperPlugin),
-    Spigot(SpigotPlugin),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginState {
+    /// Plugin config has been loaded, but not yet initialized in JVM
+    Registered,
+    /// Plugin class has been loaded and instance created
+    Loaded,
+    /// Plugin is enabled (onEnable called)
+    Enabled,
+    /// Plugin is disabled (onDisable called)
+    Disabled,
+    /// Plugin failed to load or enable
+    Errored,
 }
 
 #[derive(Debug)]
-pub struct PaperPlugin {
+pub enum PluginType {
+    Paper(PaperPluginData),
+    Spigot(SpigotPluginData),
+}
+
+#[derive(Debug)]
+pub struct PaperPluginData {
     pub paper_config: PaperPluginYml,
     pub spigot_config: Option<SpigotPluginYml>,
-    pub path: PathBuf,
 }
 
 #[derive(Debug)]
-pub struct SpigotPlugin {
+pub struct SpigotPluginData {
     pub spigot_config: SpigotPluginYml,
-    pub path: PathBuf,
 }
 
-#[derive(Debug)]
+pub struct Plugin {
+    /// Unique plugin name
+    pub name: String,
+    /// Plugin version
+    pub version: String,
+    /// Main class fully qualified name
+    pub main_class: String,
+    /// Path to the JAR file
+    pub path: PathBuf,
+    /// Plugin-specific data (Paper or Spigot)
+    pub plugin_type: PluginType,
+    /// Current state
+    pub state: PluginState,
+    /// Data folder for this plugin
+    pub data_folder: PathBuf,
+    pub instance: Option<Instance>,
+}
+
 pub struct PluginManager {
     plugins: Vec<Plugin>,
 }
@@ -51,11 +81,21 @@ impl PluginManager {
             None => None,
         };
 
-        self.add_plugin(Plugin::Paper(PaperPlugin {
+        let plugin = Plugin {
+            name: parsed_paper_plugin.name.clone(),
+            version: parsed_paper_plugin.version.clone(),
+            main_class: parsed_paper_plugin.main.clone(),
+            plugin_type: PluginType::Paper(PaperPluginData {
+                paper_config: parsed_paper_plugin,
+                spigot_config: parsed_spigot_plugin,
+            }),
+            state: PluginState::Registered,
+            data_folder: jar_path.as_ref().parent().unwrap().join("data"),
             path: jar_path.as_ref().to_path_buf(),
-            paper_config: parsed_paper_plugin,
-            spigot_config: parsed_spigot_plugin,
-        }));
+            instance: None,
+        };
+
+        self.add_plugin(plugin);
         Ok(())
     }
 
@@ -66,10 +106,68 @@ impl PluginManager {
     ) -> Result<()> {
         let parsed_spigot_plugin = SpigotPluginYml::from_str(spigot_plugin_config)?;
 
-        self.add_plugin(Plugin::Spigot(SpigotPlugin {
+        let plugin = Plugin {
+            name: parsed_spigot_plugin.name.clone(),
+            version: parsed_spigot_plugin.version.clone(),
+            main_class: parsed_spigot_plugin.main.clone(),
+            plugin_type: PluginType::Spigot(SpigotPluginData {
+                spigot_config: parsed_spigot_plugin,
+            }),
+            state: PluginState::Registered,
+            data_folder: jar_path.as_ref().parent().unwrap().join("data"),
             path: jar_path.as_ref().to_path_buf(),
-            spigot_config: parsed_spigot_plugin,
-        }));
+            instance: None,
+        };
+
+        self.add_plugin(plugin);
+        Ok(())
+    }
+
+    pub fn enable_all_plugins(&mut self, jvm: &Jvm) -> Result<()> {
+        for plugin in &mut self.plugins {
+            let result = jvm.invoke(
+                plugin.instance.as_ref().unwrap(),
+                "onEnable",
+                InvocationArg::empty(),
+            );
+
+            match result {
+                Ok(_) => {
+                    plugin.state = PluginState::Enabled;
+                    log::info!("Enabled papkin plugin: {}", plugin.name);
+                }
+                Err(e) => {
+                    plugin.state = PluginState::Errored;
+                    log::error!("Failed to enable papkin plugin {}: {:?}", plugin.name, e);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn load_all_plugins(&mut self, jvm: &Jvm) -> Result<()> {
+        for plugin in &mut self.plugins {
+            let result = jvm.invoke_static(
+                "org.papkin.loader.PluginLoader",
+                "load",
+                &[
+                    InvocationArg::try_from(plugin.path.to_string_lossy().to_string())?,
+                    InvocationArg::try_from(&plugin.main_class)?,
+                ],
+            );
+
+            match result {
+                Ok(instance) => {
+                    plugin.instance = Some(instance);
+                    plugin.state = PluginState::Loaded;
+                    log::info!("Loaded papkin plugin: {}", plugin.name);
+                }
+                Err(e) => {
+                    plugin.state = PluginState::Errored;
+                    log::error!("Failed to load papkin plugin {}: {:?}", plugin.name, e);
+                }
+            }
+        }
         Ok(())
     }
 }

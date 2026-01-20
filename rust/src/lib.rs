@@ -70,6 +70,14 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
     let jvm = initialize_jvm(classpath_entries, &dirs.j4rs)?;
     setup_papkin_server(&jvm)?;
 
+    plugin_manager
+        .load_all_plugins(&jvm)
+        .map_err(|err| format!("Failed to load papkin plugins: {}", err))?;
+
+    plugin_manager
+        .enable_all_plugins(&jvm)
+        .map_err(|err| format!("Failed to enable papkin plugins: {}", err))?;
+
     Ok(())
 }
 
