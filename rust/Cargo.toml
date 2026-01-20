@@ -19,6 +19,10 @@ j4rs = { version = "0.24" }
 j4rs_derive = "0.1"
 rust-embed = "8.9.0"
 walkdir = "2"
+zip = "7.1"
+
+serde-saphyr = "0.0.16"
+serde = { version = "1", features = ["derive"] }
 
 [build-dependencies]
 j4rs = { version = "0.24", artifact = "cdylib", lib = true }

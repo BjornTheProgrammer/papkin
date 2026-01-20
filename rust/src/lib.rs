@@ -1,136 +1,37 @@
-use std::{collections::HashSet, fs, sync::Arc};
+use std::sync::Arc;
 
-use glob::glob;
-use j4rs::{ClasspathEntry, InvocationArg, JvmBuilder};
 use pumpkin::plugin::Context;
 use pumpkin_api_macros::{plugin_impl, plugin_method};
-use rust_embed::Embed;
 
+pub mod config;
+pub mod directories;
 pub mod java;
 
-#[derive(Embed)]
-#[folder = "resources/"]
-struct Resources;
+use directories::setup_directories;
+use java::{
+    jar::{create_classpath_entries, discover_jar_files},
+    jvm::{initialize_jvm, setup_papkin_server},
+    resources::{cleanup_stale_files, sync_embedded_resources},
+};
 
 async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(), String> {
     server.init_log();
     log::info!("Starting Papkin");
 
-    let papkin_folder = server
-        .get_data_folder()
-        .canonicalize()
-        .map_err(|_err| "Failed to get absolute directory from relative")?;
-    let mut papkin_plugin_folder = papkin_folder.clone();
-    papkin_plugin_folder.push("papkin-plugins");
+    // Setup directories
+    let dirs = setup_directories(&server)?;
 
-    let mut papkin_plugin_update_folder = papkin_plugin_folder.clone();
-    papkin_plugin_update_folder.push("update");
-    fs::create_dir_all(&papkin_plugin_update_folder)
-        .map_err(|err| format!("Failed to create plugin folder: {:?}", err))?;
+    // Discover and prepare JAR files
+    let jar_paths = discover_jar_files(&dirs.plugins);
+    let classpath_entries = create_classpath_entries(&jar_paths);
 
-    let mut j4rs_folder = papkin_folder.clone();
-    j4rs_folder.push("j4rs");
-    let mut jassets = j4rs_folder.clone();
-    jassets.push("jassets");
-    fs::create_dir_all(&jassets)
-        .map_err(|err| format!("Failed to create jassets folder: {:?}", err))?;
+    // Manage embedded resources
+    cleanup_stale_files(&dirs.j4rs);
+    sync_embedded_resources(&dirs.j4rs)?;
 
-    let papkin_plugin_folder = papkin_plugin_folder.to_string_lossy();
-
-    let mut entries = Vec::new();
-    for entry in
-        glob(&format!("{}/**/*.jar", papkin_plugin_folder)).expect("Failed to read glob pattern")
-    {
-        log::info!("jar found: {:?}", entry);
-        match entry {
-            Ok(inner_path) => match inner_path.canonicalize() {
-                Ok(path) => match path.to_str() {
-                    Some(path) => entries.push(path.to_string()),
-                    None => log::error!("Couldn't convert '{}' into string", inner_path.display()),
-                },
-                Err(e) => log::error!("Failed to convert path to string: {:?}", e),
-            },
-            Err(e) => log::error!("Failed to canonicalize path: {:?}", e),
-        }
-    }
-
-    let entries = entries
-        .iter()
-        .map(|entry| ClasspathEntry::new(entry))
-        .collect::<Vec<_>>();
-
-    let allowed: HashSet<String> = Resources::iter().map(|p| p.to_string()).collect();
-
-    for entry in walkdir::WalkDir::new(&j4rs_folder)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-    {
-        let rel_path = entry
-            .path()
-            .strip_prefix(&j4rs_folder)
-            .unwrap()
-            .to_string_lossy()
-            .to_string();
-
-        if !allowed.contains(&rel_path) {
-            log::warn!("Removing stale j4rs file: {rel_path}");
-            let _ = fs::remove_file(entry.path()); // ignore error (locked file, perms, etc)
-        }
-    }
-
-    log::info!("Finished walking directory");
-
-    for resource_path_str in Resources::iter() {
-        let mut resource_path = j4rs_folder.clone();
-        resource_path.push(resource_path_str.to_string());
-        if !resource_path.exists() {
-            let resource = Resources::get(&resource_path_str).unwrap();
-            let mut resource_parent = resource_path.clone();
-            resource_parent.pop();
-            fs::create_dir_all(resource_parent)
-                .map_err(|err| format!("Failed to create parent for resource: {:?}", err))?;
-
-            fs::write(resource_path, resource.data)
-                .map_err(|err| format!("Failed to add resource: {:?}", err))?;
-        } else {
-            let resource = Resources::get(&resource_path_str).unwrap();
-            let old_resource = fs::read(&resource_path)
-                .map_err(|err| format!("Failed to read resource: {:?}", err))?;
-
-            if resource.data == old_resource {
-                continue;
-            }
-
-            fs::write(resource_path, resource.data)
-                .map_err(|err| format!("Failed to add resource: {:?}", err))?;
-        }
-    }
-
-    log::info!("Starting the JVM");
-
-    let jvm = JvmBuilder::new()
-        .classpath_entries(entries)
-        .with_base_path(&j4rs_folder)
-        .build()
-        .map_err(|err| format!("jvm failed to init: {:?}", err))?;
-
-    log::info!("Started the JVM");
-
-    let papkin_server = jvm
-        .create_instance("org.papkin.PapkinServer", InvocationArg::empty())
-        .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
-
-    log::info!("After creating instance of server");
-
-    jvm.invoke_static(
-        "org.bukkit.Bukkit",
-        "setServer",
-        &[InvocationArg::from(papkin_server)],
-    )
-    .map_err(|err| format!("Failed to init plugin: {:?}", err))?;
-
-    log::info!("After setting server");
+    // Initialize JVM and Papkin server
+    let jvm = initialize_jvm(classpath_entries, &dirs.j4rs)?;
+    setup_papkin_server(&jvm)?;
 
     Ok(())
 }
