@@ -15,7 +15,6 @@ pub fn discover_jar_files(plugin_folder: &PathBuf) -> Vec<PathBuf> {
     let mut entries = Vec::new();
 
     for entry in glob(&pattern).expect("Failed to read glob pattern") {
-        log::info!("jar found: {:?}", entry);
         match entry {
             Ok(inner_path) => match inner_path.canonicalize() {
                 Ok(path) => entries.push(path),

@@ -26,8 +26,6 @@ pub fn cleanup_stale_files(j4rs_folder: &PathBuf) {
             let _ = fs::remove_file(entry.path());
         }
     }
-
-    log::info!("Finished walking directory");
 }
 
 pub fn sync_embedded_resources(j4rs_folder: &PathBuf) -> Result<(), String> {

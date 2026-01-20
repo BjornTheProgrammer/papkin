@@ -29,7 +29,6 @@ async fn on_load_inner(_plugin: &mut MyPlugin, server: Arc<Context>) -> Result<(
 
     // Discover and prepare JAR files
     let jar_paths = discover_jar_files(&dirs.plugins);
-    log::error!("Discovered JAR files: {:?}", jar_paths);
     for jar_path in &jar_paths {
         match read_configs_from_jar(jar_path) {
             Ok(configs) => match configs {
