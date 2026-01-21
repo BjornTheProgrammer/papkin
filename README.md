@@ -2,6 +2,10 @@
 
 A plugin for [PumpkinMC](https://pumpkinmc.org/) that adds support for [PaperMC](https://papermc.io/), [Spigot](https://www.spigotmc.org/), and [Bukkit](https://dev.bukkit.org/) plugins.
 
+> [!IMPORTANT]
+> Moved to [https://github.com/Pumpkin-MC/PatchBukkit](https://github.com/Pumpkin-MC/PatchBukkit)
+
+
 ## Installation
 
 > [!IMPORTANT]
