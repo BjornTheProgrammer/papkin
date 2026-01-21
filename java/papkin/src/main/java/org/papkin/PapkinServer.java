@@ -1537,10 +1537,7 @@ public class PapkinServer implements Server {
 
     @Override
     public @NotNull UnsafeValues getUnsafe() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException(
-            "Unimplemented method 'getUnsafe'"
-        );
+        return PapkinUnsafeValues.INSTANCE;
     }
 
     @Override
